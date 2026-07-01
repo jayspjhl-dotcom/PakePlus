@@ -38,15 +38,8 @@ th{background:#edf2f7;color:#2d3748}
 .detail-item{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin:6px 0;align-items:center}
 .collapse-btn{width:100%;text-align:left;background:#f1f1f1;margin:10px 0;padding:8px;border-radius:4px;border:1px solid #ddd}
 .collapse-content{overflow:hidden;transition:height 0.3s ease}
-.table-wrap{
-    max-height: 680px;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-.model-table-wrap{
-    max-height: 240px;
-    overflow-y: auto;
-}
+.table-wrap{max-height: 680px;overflow-y: auto;overflow-x: hidden;}
+.model-table-wrap{max-height: 240px;overflow-y: auto;}
 
 @media print {
     body * {visibility:hidden !important;}
@@ -155,16 +148,13 @@ NEI自动排单工具
     </div>
 </div>
 
-<!-- 打印容器 -->
 <div class="print-only" id="printBox"></div>
-
 <div class="auto-tip" id="saveTip">数据已自动保存</div>
 
 <div class="modal" id="settingModal">
     <div class="modal-content">
         <span class="close" onclick="closeSetting()">&times;</span>
         <h3>产品产能档案管理</h3>
-
         <div class="form-group">
             <label>产品型号</label>
             <input type="text" id="modelName" placeholder="例：HL-S100">
@@ -174,14 +164,12 @@ NEI自动排单工具
             <input type="number" id="modelOutput" min="1">
         </div>
         <button class="btn btn-success" onclick="saveModel()">保存新增型号</button>
-
         <button class="collapse-btn" onclick="toggleModelList()">▼ 点击展开/折叠已保存型号列表</button>
         <div class="collapse-content" id="modelListWrap">
             <div class="model-table-wrap">
                 <div id="modelList"></div>
             </div>
         </div>
-
         <hr style="margin:20px 0">
         <h3>数据备份与恢复</h3>
         <input type="file" id="fileInput" accept=".json" onchange="importData()">
@@ -585,15 +573,15 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// 先确认，再清空排产结果
+// 【重点修复】延时锁住渲染顺序，解决EXE先清空再弹窗
 function clearScheduleResult(){
-    // 只把数据清空动作放到确认回调里，页面刷新延迟到确认之后
     if(confirm('确定要清空本次排产结果吗？')){
-        scheduleData = [];
-        autoSave();
-        // 只在确认完成后再执行DOM渲染清空
-        document.getElementById('scheduleResult').innerHTML="";
-        if(window.ganttChart) window.ganttChart.destroy();
+        setTimeout(()=>{
+            scheduleData = [];
+            autoSave();
+            document.getElementById('scheduleResult').innerHTML="";
+            if(window.ganttChart) window.ganttChart.destroy();
+        }, 20);
     }
 }
 
@@ -773,7 +761,7 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// 打印排产明细
+// 打印（双打印独立容器，互不串内容）
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -785,7 +773,6 @@ function printSchedule(){
     box.innerHTML = '';
 }
 
-// 打印已完成订单（独立打印内容，不会串表格）
 function printFinishList(){
     if(finishList.length===0){
         alert('暂无已完成订单');
@@ -797,7 +784,7 @@ function printFinishList(){
     box.innerHTML = '';
 }
 
-// 导出CSV，执行完成弹出提示，解决“以为没反应”
+// CSV导出，Base64+DataURL，兼容开启TauriApi后的安全拦截，导出后弹窗提示
 function exportSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -821,8 +808,7 @@ function exportSchedule(){
     a.click();
     document.body.removeChild(a);
 
-    // 增加提示，告知用户文件已经保存
-    alert("CSV文件已成功导出！");
+    alert("CSV文件已导出成功！");
 }
 </script>
 </body>
