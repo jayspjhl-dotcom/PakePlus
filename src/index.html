@@ -140,7 +140,7 @@ NEI自动排单工具
         <button class="btn btn-success" onclick="autoSchedule()">自动排产（逐条产品计算工期）</button>
         <button class="btn btn-primary" onclick="exportSchedule()">导出在产排单表</button>
         <button class="btn btn-print" onclick="printSchedule()">🖨 打印排产明细</button>
-        <button class="btn btn-warning" onclick="clearSchedule()">清空排产结果</button>
+        <button class="btn btn-warning" onclick="clearScheduleResult()">清空排产结果</button>
     </div>
 
     <div class="card">
@@ -236,7 +236,6 @@ NEI自动排单工具
 </div>
 
 <script>
-// 优先读取持久化存储，兼容Pake EXE持久化
 let modelLib = JSON.parse(localStorage.getItem('modelLib')) || [];
 let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
 let finishList = JSON.parse(localStorage.getItem('finishList')) || [];
@@ -263,7 +262,6 @@ function toggleModelList(){
     btn.innerHTML = modelCollapse ? '▶ 点击展开/折叠已保存型号列表' : '▼ 点击展开/折叠已保存型号列表';
 }
 
-// 自动保存到本地存储
 function autoSave(){
     localStorage.setItem('modelLib',JSON.stringify(modelLib));
     localStorage.setItem('taskList',JSON.stringify(taskList));
@@ -356,7 +354,7 @@ function saveWholeOrder(){
         return;
     }
     if(new Date(day) < new Date(ordTime)){
-        alert('出货日期不能早于下单时间，请重新选择日期！');
+        alert('出货日期不能早于下单时间，请重新选择！');
         return;
     }
     let lines = document.querySelectorAll('.detail-item');
@@ -465,14 +463,14 @@ function batchUpdateOrderDeadline(){
     if(count>0){
         autoSave();
         renderTaskList();
-        alert(`修改成功！一共更新了${count}条同订单产品的出货日期`);
+        alert(`修改成功！共更新${count}条同订单产品`);
     }else{
-        alert("没有找到该订单号的数据");
+        alert("未找到该订单");
     }
 }
 
 function clearAllTask(){
-    if(confirm('确定要清空所有待排产订单吗？删除后无法恢复！')){
+    if(confirm('确定要清空所有待排订单吗？删除后无法恢复！')){
         taskList = [];
         autoSave();
         renderTaskList();
@@ -514,7 +512,7 @@ function openEdit(index){
     document.getElementById('editName').value=row.name;
     document.getElementById('editNum').value=row.num;
     document.getElementById('editUnit').value=row.unitTime;
-    document.getElementById('editPrepare').value=row.prepareDay||0;
+    document.getElementById('editPrepare').value=row.prepare||0;
     document.getElementById('editPri').value=row.priority;
     document.getElementById('editDeadline').value=row.deadline;
     document.getElementById('editOrderTime').value=row.orderTime;
@@ -541,7 +539,7 @@ function saveEdit(){
 
 function autoSchedule(){
     if(taskList.length==0){
-        alert('暂无待排产订单，无需排产！');
+        alert('暂无待排订单，无需排产！');
         scheduleData=[];
         document.getElementById('scheduleResult').innerHTML="";
         if(window.ganttChart) window.ganttChart.destroy();
@@ -585,8 +583,10 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-function clearSchedule(){
-    if(confirm('确定要清空当前排产计算结果吗？')){
+// ========== 重点修改1：先弹窗确认，再清空数据 ==========
+function clearScheduleResult(){
+    // 先弹出确认框，确认通过才清空
+    if(confirm('确定要清空本次排产结果吗？')){
         scheduleData=[];
         autoSave();
         document.getElementById('scheduleResult').innerHTML="";
@@ -681,12 +681,12 @@ function saveModel(){
     let name=document.getElementById('modelName').value.trim();
     let out=Number(document.getElementById('modelOutput').value);
     if(!name||!out){
-        alert('填写完整型号与产能');
+        alert('请填写完整型号与产能');
         return;
     }
     let exist = modelLib.find(m=>m.name===name);
     if(editModelIndex === null && exist){
-        alert("该型号已存在，请直接编辑原有条目，不要重复新增！");
+        alert("该型号已存在，请直接编辑原有条目！");
         return;
     }
     if(editModelIndex !== null){
@@ -732,7 +732,7 @@ function exportBackup(){
     let blob=new Blob([JSON.stringify(backup,null,2)]);
     let a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download="NEI排单全数据手动备份.json";
+    a.download="NEI排单全数据备份.json";
     a.click();
 }
 
@@ -752,7 +752,7 @@ function importData(){
             renderTaskList();
             renderFinishList();
             if(scheduleData.length>0){renderScheduleResult();drawGanttChart()}
-            alert("全部数据导入成功");
+            alert("数据导入成功");
         }catch(err){
             alert("备份文件格式错误，导入失败！");
         }
@@ -770,65 +770,13 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
+// ========== 重点修改2：取消新开窗口，直接在当前页面打印，不再被内核拦截 ==========
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
         return;
     }
-    let printHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <style>
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #333;padding:6px;text-align:center;font-size:12px}
-    h2{text-align:center;margin-bottom:20px}
-    </style>
-    </head>
-    <body>
-    <h2>NEI生产排单明细</h2>
-    <table>
-    <tr>
-    <th>排序</th>
-    <th>订单号</th>
-    <th>产品型号</th>
-    <th>数量</th>
-    <th>档案最新日产量</th>
-    <th>备料天数</th>
-    <th>材料到位日</th>
-    <th>正式开工日</th>
-    <th>生产天数</th>
-    <th>完工日期</th>
-    <th>出货日期</th>
-    <th>状态</th>
-    </tr>`;
-    scheduleData.forEach((r,i)=>{
-        let stat=r.isOver?'延期':'正常';
-        printHtml+=`<tr>
-        <td>${i+1}</td>
-        <td>${r.orderNo}</td>
-        <td>${r.name}</td>
-        <td>${r.num}</td>
-        <td>${r.realOutput}</td>
-        <td>${r.prepareDay}</td>
-        <td>${r.materialReadyDate}</td>
-        <td>${r.startWorkDate}</td>
-        <td>${r.produceDays}</td>
-        <td>${r.finishDate}</td>
-        <td>${r.deadline}</td>
-        <td>${stat}</td>
-        </tr>`;
-    })
-    printHtml += `</table></body></html>`;
-
-    let newWin = window.open('','_blank');
-    newWin.document.write(printHtml);
-    newWin.document.close();
-    setTimeout(()=>{
-        newWin.focus();
-        newWin.print();
-    },300);
+    window.print();
 }
 
 function printFinishList(){
@@ -836,53 +784,11 @@ function printFinishList(){
         alert('暂无已完成订单');
         return;
     }
-    let printHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <style>
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #333;padding:6px;text-align:center;font-size:12px}
-    h2{text-align:center;margin-bottom:20px}
-    </style>
-    </head>
-    <body>
-    <h2>NEI已完成归档订单</h2>
-    <table>
-    <tr>
-    <th>订单号</th>
-    <th>产品型号</th>
-    <th>数量</th>
-    <th>日产量</th>
-    <th>备料天数</th>
-    <th>出货日期</th>
-    <th>下单时间</th>
-    </tr>`;
-    finishList.forEach(r=>{
-        printHtml+=`<tr>
-        <td>${r.orderNo}</td>
-        <td>${r.name}</td>
-        <td>${r.num}</td>
-        <td>${r.unitTime}</td>
-        <td>${r.prepareDay}</td>
-        <td>${r.deadline}</td>
-        <td>${r.orderTime}</td>
-        </tr>`;
-    })
-    printHtml += `</table></body></html>`;
-
-    let newWin = window.open('','_blank');
-    newWin.document.write(printHtml);
-    newWin.document.close();
-    setTimeout(()=>{
-        newWin.focus();
-        newWin.print();
-    },300);
+    window.print();
 }
 
 function exportSchedule(){
-    if(scheduleData.length==0){alert('先执行自动排产');return}
+    if(scheduleData.length==0){alert('请先执行自动排产');return}
     let csv="排序,订单号,产品型号,数量,档案最新日产量,备料天数,材料到位日,正式开工日,生产天数,完工日期,出货日期,状态\n";
     scheduleData.forEach((r,i)=>{
         let st=r.isOver?"延期":"正常";
