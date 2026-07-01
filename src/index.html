@@ -56,6 +56,9 @@ th{background:#edf2f7;color:#2d3748}
     th,td{padding:4px;border:1px solid #666;}
     h2{text-align:center;margin-bottom:10px;font-size:15px}
 }
+.no-print{
+    display:block;
+}
 </style>
 </head>
 <body>
@@ -245,6 +248,13 @@ window.ganttChart=null;
 let taskCollapse = false;
 let modelCollapse = false;
 let editModelIndex = null;
+
+// 关闭窗口确认弹窗（已内置完成）
+window.onbeforeunload = function(e) {
+    e.preventDefault();
+    e.returnValue = '';
+    return '您确定要退出排单工具吗？';
+};
 
 function toggleTaskList(){
     let wrap = document.getElementById('taskListWrap');
@@ -512,7 +522,7 @@ function openEdit(index){
     document.getElementById('editName').value=row.name;
     document.getElementById('editNum').value=row.num;
     document.getElementById('editUnit').value=row.unitTime;
-    document.getElementById('editPrepare').value=row.prepare||0;
+    document.getElementById('editPrepare').value=row.prepareDay||0;
     document.getElementById('editPri').value=row.priority;
     document.getElementById('editDeadline').value=row.deadline;
     document.getElementById('editOrderTime').value=row.orderTime;
@@ -583,9 +593,8 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// ========== 重点修改1：先弹窗确认，再清空数据 ==========
+// 修复2：先确认，再清空排产结果（顺序不再颠倒）
 function clearScheduleResult(){
-    // 先弹出确认框，确认通过才清空
     if(confirm('确定要清空本次排产结果吗？')){
         scheduleData=[];
         autoSave();
@@ -770,7 +779,7 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// ========== 重点修改2：取消新开窗口，直接在当前页面打印，不再被内核拦截 ==========
+// 修复1：取消新开窗口，当前页直接打印，不会被EXE内核拦截
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
