@@ -15,7 +15,7 @@ body{padding:20px;background:#f5f7fa;max-width:1400px;margin:0 auto}
 .form-group{margin-bottom:12px}
 label{display:block;margin-bottom:5px;font-weight:500;color:#4a5568}
 input,select{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:4px;font-size:14px}
-.btn{padding:5px 6px;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin:1px}
+.btn{padding:5px 8px;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin:1px}
 .btn-primary{background:#2b6cb0;color:#fff}
 .btn-success{background:#38a169;color:#fff}
 .btn-warning{background:#f39c12;color:#fff}
@@ -336,7 +336,7 @@ function syncModelOutputToOrder(){
 function saveWholeOrder(){
     let orderNo = document.getElementById('orderNo').value.trim();
     let pri = document.getElementById('priority').value;
-    let prep = +document.getElementById('prepareDay').value;
+    let prep = Number(document.getElementById('prepareDay').value);
     let day = document.getElementById('deadline').value;
     let ordTime = document.getElementById('orderTime').value;
     if(!orderNo || !day || !ordTime){
@@ -351,8 +351,8 @@ function saveWholeOrder(){
     let hasItem = false;
     lines.forEach(line=>{
         let name = line.querySelector('.sel-model').value;
-        let num = +line.querySelector('.inp-num').value;
-        let unit = +line.querySelector('.inp-unit').value;
+        let num = Number(line.querySelector('.inp-num').value);
+        let unit = Number(line.querySelector('.inp-unit').value);
         if(name && num && unit){
             hasItem = true;
             taskList.push({orderNo,name,num,unitTime:unit,prepareDay:prep,priority:pri,deadline:day,orderTime:ordTime})
@@ -442,7 +442,6 @@ function batchUpdateOrderDeadline(){
     if(!orderNo || orderNo.trim() === "") return;
     let newDay = prompt("请输入新出货日期（格式：2026-07-15）：");
     if(!newDay || newDay.trim() === "") return;
-
     let count = 0;
     taskList.forEach(row=>{
         if(row.orderNo.trim() === orderNo.trim()){
@@ -459,16 +458,24 @@ function batchUpdateOrderDeadline(){
     }
 }
 
-// 【关键修复】先备份，取消自动恢复，不会出现先空白再弹窗
+// 【核心修复1】清空全部待排订单：深拷贝完整备份+延时渲染，取消自动恢复
 function clearAllTask(){
-    let tempData = [...taskList];
+    // 深拷贝完整备份所有订单数据，无引用污染
+    const backupTaskList = JSON.parse(JSON.stringify(taskList));
+    // 仅弹窗确认，不操作页面DOM
     if(confirm('确定要清空所有待排订单吗？删除后无法恢复！')){
-        taskList = [];
-        autoSave();
-        renderTaskList();
+        // 确定：延时执行清空渲染，避开WebView优先渲染BUG
+        setTimeout(()=>{
+            taskList = [];
+            autoSave();
+            renderTaskList();
+        },30);
     }else{
-        taskList = tempData;
-        renderTaskList();
+        // 取消：延时恢复原始数据并重绘表格
+        setTimeout(()=>{
+            taskList = backupTaskList;
+            renderTaskList();
+        },30);
     }
 }
 
@@ -553,7 +560,6 @@ function autoSchedule(){
     sorted.forEach(t=>{
         let libItem = modelLib.find(m=>m.name===t.name);
         let realOutput = libItem ? libItem.output : t.unitTime;
-
         let orderDate = new Date(t.orderTime);
         let materialReady = new Date(orderDate);
         materialReady.setDate(materialReady.getDate() + t.prepareDay);
@@ -578,19 +584,21 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// 排产清空：备份+延时，取消数据自动回滚
+// 【核心修复2】清空排产结果：深拷贝备份+延时渲染，取消自动回滚
 function clearScheduleResult(){
-    let tempData = [...scheduleData];
+    const backupSchedule = JSON.parse(JSON.stringify(scheduleData));
     if(confirm('确定要清空本次排产结果吗？')){
         setTimeout(()=>{
             scheduleData = [];
             autoSave();
             document.getElementById('scheduleResult').innerHTML="";
             if(window.ganttChart) window.ganttChart.destroy();
-        }, 20);
+        },30);
     }else{
-        scheduleData = tempData;
-        renderScheduleResult();
+        setTimeout(()=>{
+            scheduleData = backupSchedule;
+            renderScheduleResult();
+        },30);
     }
 }
 
@@ -684,7 +692,7 @@ function saveModel(){
         alert('请填写完整型号与产能');
         return;
     }
-    let exist = modelLib.find(m=>m.name===item.name);
+    let exist = modelLib.find(m=>m.name===name);
     if(editModelIndex === null && exist){
         alert("该型号已存在，请直接编辑原有条目！");
         return;
@@ -770,7 +778,7 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// 两套打印独立容器，互不串表格
+// 打印排产明细，独立打印容器不串表格
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -782,6 +790,7 @@ function printSchedule(){
     box.innerHTML = '';
 }
 
+// 打印已完成订单，独立打印容器不串表格
 function printFinishList(){
     if(finishList.length===0){
         alert('暂无已完成订单');
@@ -793,7 +802,7 @@ function printFinishList(){
     box.innerHTML = '';
 }
 
-// CSV导出Base64方案，不会被WebView拦截，导出弹窗提示
+// CSV导出Base64兼容Tauri下载拦截，导出成功弹窗提示
 function exportSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -804,19 +813,16 @@ function exportSchedule(){
         let st=r.isOver?"延期":"正常";
         csv+=`${i+1},${r.orderNo},${r.name},${r.num},${r.realOutput},${r.prepareDay},${r.materialReadyDate},${r.startWorkDate},${r.produceDays},${r.finishDate},${r.deadline},${st}\n`;
     });
-
     let utf8Bytes = new TextEncoder().encode("\uFEFF" + csv);
     let binary = '';
     utf8Bytes.forEach(b=> binary += String.fromCharCode(b));
     let base64 = btoa(binary);
-
     let a = document.createElement('a');
     a.href = `data:text/csv;base64,${base64}`;
     a.download = `NEI在产排单计划_${fmt(new Date())}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-
     alert("CSV文件已成功导出！");
 }
 </script>
