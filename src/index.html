@@ -56,19 +56,16 @@ th{background:#edf2f7;color:#2d3748}
     th,td{padding:4px;border:1px solid #666;}
     h2{text-align:center;margin-bottom:10px;font-size:15px}
 }
-.no-print{
-    display:block;
-}
 </style>
 </head>
 <body>
-<h1 class="title no-print">
+<h1 class="title">
 NEI自动排单工具
 <span style="font-size:14px;color:#38a169">✅ 同一订单支持多型号明细</span>
 <button class="btn btn-set" onclick="openSetting()">⚙ 设置</button>
 </h1>
 
-<div class="container no-print">
+<div class="container">
 <div>
     <div class="card">
         <h3>新建订单（可添加多款产品）</h3>
@@ -161,7 +158,7 @@ NEI自动排单工具
 
 <div class="auto-tip" id="saveTip">数据已自动保存</div>
 
-<div class="modal no-print" id="settingModal">
+<div class="modal" id="settingModal">
     <div class="modal-content">
         <span class="close" onclick="closeSetting()">&times;</span>
         <h3>产品产能档案管理</h3>
@@ -191,7 +188,7 @@ NEI自动排单工具
     </div>
 </div>
 
-<div class="edit-modal no-print" id="editModal">
+<div class="edit-modal" id="editModal">
     <div class="edit-content">
         <h3>修改单条产品明细</h3>
         <input type="hidden" id="editIndex">
@@ -248,13 +245,6 @@ window.ganttChart=null;
 let taskCollapse = false;
 let modelCollapse = false;
 let editModelIndex = null;
-
-// 关闭窗口确认弹窗（已内置完成）
-window.onbeforeunload = function(e) {
-    e.preventDefault();
-    e.returnValue = '';
-    return '您确定要退出排单工具吗？';
-};
 
 function toggleTaskList(){
     let wrap = document.getElementById('taskListWrap');
@@ -593,7 +583,7 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// 修复2：先确认，再清空排产结果（顺序不再颠倒）
+// 先确认，再清空排产结果（顺序不再颠倒）
 function clearScheduleResult(){
     if(confirm('确定要清空本次排产结果吗？')){
         scheduleData=[];
@@ -779,7 +769,7 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// 修复1：取消新开窗口，当前页直接打印，不会被EXE内核拦截
+// 当前页面直接打印，不会被EXE内核拦截
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -796,18 +786,29 @@ function printFinishList(){
     window.print();
 }
 
+// 已修复：Base64方案，绕过WebView下载拦截，不会再点击无反应
 function exportSchedule(){
-    if(scheduleData.length==0){alert('请先执行自动排产');return}
+    if(scheduleData.length===0){
+        alert('请先执行自动排产');
+        return;
+    }
     let csv="排序,订单号,产品型号,数量,档案最新日产量,备料天数,材料到位日,正式开工日,生产天数,完工日期,出货日期,状态\n";
     scheduleData.forEach((r,i)=>{
         let st=r.isOver?"延期":"正常";
         csv+=`${i+1},${r.orderNo},${r.name},${r.num},${r.realOutput},${r.prepareDay},${r.materialReadyDate},${r.startWorkDate},${r.produceDays},${r.finishDate},${r.deadline},${st}\n`;
-    })
-    let blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    let a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`NEI在产排单计划_${fmt(new Date())}.csv`;
+    });
+
+    let utf8Bytes = new TextEncoder().encode("\uFEFF" + csv);
+    let binary = '';
+    utf8Bytes.forEach(b=> binary += String.fromCharCode(b));
+    let base64 = btoa(binary);
+
+    let a = document.createElement('a');
+    a.href = `data:text/csv;base64,${base64}`;
+    a.download = `NEI在产排单计划_${fmt(new Date())}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
 }
 </script>
 </body>
