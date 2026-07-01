@@ -17,7 +17,13 @@ const hookClick = (e) => {
         console.log('not handle origin', origin)
     }
 }
-
+import { appWindow } from '@tauri-apps/api/window';
+appWindow.onCloseRequested(async (event) => {
+    const ok = await confirm("您确定要退出排单工具吗？");
+    if (!ok) {
+        event.preventDefault();
+    }
+});
 window.open = function (url, target, features) {
     console.log('open', url, target, features)
     location.href = url
