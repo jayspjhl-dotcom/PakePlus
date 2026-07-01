@@ -459,10 +459,15 @@ function batchUpdateOrderDeadline(){
     }
 }
 
+// 【关键修复】先备份，取消自动恢复，不会出现先空白再弹窗
 function clearAllTask(){
+    let tempData = [...taskList];
     if(confirm('确定要清空所有待排订单吗？删除后无法恢复！')){
         taskList = [];
         autoSave();
+        renderTaskList();
+    }else{
+        taskList = tempData;
         renderTaskList();
     }
 }
@@ -573,8 +578,9 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// 【重点修复】延时锁住渲染顺序，解决EXE先清空再弹窗
+// 排产清空：备份+延时，取消数据自动回滚
 function clearScheduleResult(){
+    let tempData = [...scheduleData];
     if(confirm('确定要清空本次排产结果吗？')){
         setTimeout(()=>{
             scheduleData = [];
@@ -582,6 +588,9 @@ function clearScheduleResult(){
             document.getElementById('scheduleResult').innerHTML="";
             if(window.ganttChart) window.ganttChart.destroy();
         }, 20);
+    }else{
+        scheduleData = tempData;
+        renderScheduleResult();
     }
 }
 
@@ -675,7 +684,7 @@ function saveModel(){
         alert('请填写完整型号与产能');
         return;
     }
-    let exist = modelLib.find(m=>m.name===name);
+    let exist = modelLib.find(m=>m.name===item.name);
     if(editModelIndex === null && exist){
         alert("该型号已存在，请直接编辑原有条目！");
         return;
@@ -761,7 +770,7 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// 打印（双打印独立容器，互不串内容）
+// 两套打印独立容器，互不串表格
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -784,7 +793,7 @@ function printFinishList(){
     box.innerHTML = '';
 }
 
-// CSV导出，Base64+DataURL，兼容开启TauriApi后的安全拦截，导出后弹窗提示
+// CSV导出Base64方案，不会被WebView拦截，导出弹窗提示
 function exportSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -808,7 +817,7 @@ function exportSchedule(){
     a.click();
     document.body.removeChild(a);
 
-    alert("CSV文件已导出成功！");
+    alert("CSV文件已成功导出！");
 }
 </script>
 </body>
