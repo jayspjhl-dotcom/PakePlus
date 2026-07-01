@@ -50,11 +50,10 @@ th{background:#edf2f7;color:#2d3748}
 
 @media print {
     body * {visibility:hidden !important;}
-    .print-page-wrap, .print-page-wrap * {visibility:visible !important;}
-    .print-page-wrap {position:absolute;left:0;top:0;width:100%;}
+    .print-only * {visibility:visible !important;}
+    .print-only {position:absolute;left:0;top:0;width:100%;}
     table{width:100%;font-size:11px;border-collapse:collapse}
     th,td{padding:4px;border:1px solid #666;}
-    h2{text-align:center;margin-bottom:10px;font-size:15px}
 }
 </style>
 </head>
@@ -155,6 +154,9 @@ NEI自动排单工具
         </div>
     </div>
 </div>
+
+<!-- 打印容器 -->
+<div class="print-only" id="printBox"></div>
 
 <div class="auto-tip" id="saveTip">数据已自动保存</div>
 
@@ -583,18 +585,20 @@ function autoSchedule(){
     drawGanttChart();
 }
 
-// 先确认，再清空排产结果（顺序不再颠倒）
+// 先确认，再清空排产结果
 function clearScheduleResult(){
+    // 只把数据清空动作放到确认回调里，页面刷新延迟到确认之后
     if(confirm('确定要清空本次排产结果吗？')){
-        scheduleData=[];
+        scheduleData = [];
         autoSave();
+        // 只在确认完成后再执行DOM渲染清空
         document.getElementById('scheduleResult').innerHTML="";
         if(window.ganttChart) window.ganttChart.destroy();
     }
 }
 
 function renderScheduleResult(){
-    let html=`<table class="print-page-wrap">
+    let html=`<table>
     <tr>
     <th>排序</th>
     <th>订单号</th>
@@ -769,24 +773,31 @@ function closeSetting(){
     document.getElementById('settingModal').style.display="none";
 }
 
-// 当前页面直接打印，不会被EXE内核拦截
+// 打印排产明细
 function printSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
         return;
     }
+    let box = document.getElementById('printBox');
+    box.innerHTML = document.getElementById('scheduleResult').innerHTML;
     window.print();
+    box.innerHTML = '';
 }
 
+// 打印已完成订单（独立打印内容，不会串表格）
 function printFinishList(){
     if(finishList.length===0){
         alert('暂无已完成订单');
         return;
     }
+    let box = document.getElementById('printBox');
+    box.innerHTML = document.getElementById('finishList').innerHTML;
     window.print();
+    box.innerHTML = '';
 }
 
-// 已修复：Base64方案，绕过WebView下载拦截，不会再点击无反应
+// 导出CSV，执行完成弹出提示，解决“以为没反应”
 function exportSchedule(){
     if(scheduleData.length===0){
         alert('请先执行自动排产');
@@ -809,6 +820,9 @@ function exportSchedule(){
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+
+    // 增加提示，告知用户文件已经保存
+    alert("CSV文件已成功导出！");
 }
 </script>
 </body>
